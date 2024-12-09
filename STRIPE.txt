@@ -1,0 +1,136 @@
+Integrating Stripe into a .NET Core 8 backend and Angular 18 frontend involves the following steps:
+
+Backend: .NET Core 8 Integration
+Install Stripe SDK: Use NuGet to install the Stripe library:
+
+bash
+Copy code
+dotnet add package Stripe.net
+Configure Stripe:
+
+Add your Stripe secret key in appsettings.json:
+json
+Copy code
+{
+  "Stripe": {
+    "SecretKey": "your-secret-key",
+    "PublishableKey": "your-publishable-key"
+  }
+}
+Load configuration in Program.cs or equivalent setup file:
+csharp
+Copy code
+builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection("Stripe"));
+Create a Payment Controller:
+
+Add a new controller, e.g., PaymentsController.cs, in the Controllers folder.
+Example code for creating a checkout session:
+csharp
+Copy code
+using Microsoft.AspNetCore.Mvc;
+using Stripe.Checkout;
+
+[ApiController]
+[Route("api/[controller]")]
+public class PaymentsController : ControllerBase
+{
+    private readonly IConfiguration _config;
+
+    public PaymentsController(IConfiguration config)
+    {
+        _config = config;
+    }
+
+    [HttpPost("create-checkout-session")]
+    public IActionResult CreateCheckoutSession([FromBody] List<SessionLineItemOptions> items)
+    {
+        var domain = "http://localhost:4200"; // Angular frontend URL
+        var options = new SessionCreateOptions
+        {
+            PaymentMethodTypes = new List<string> { "card" },
+            LineItems = items,
+            Mode = "payment",
+            SuccessUrl = $"{domain}/success",
+            CancelUrl = $"{domain}/cancel",
+        };
+        var service = new SessionService();
+        var session = service.Create(options);
+
+        return Ok(new { sessionId = session.Id });
+    }
+}
+Run the Server: Test the API endpoint by running your backend and hitting the /api/payments/create-checkout-session endpoint with sample data.
+
+Frontend: Angular 18 Integration
+Install Stripe JavaScript SDK: In your Angular project, install the Stripe library:
+
+bash
+Copy code
+npm install @stripe/stripe-js
+Create a Payment Component:
+
+Generate a new component (if needed):
+bash
+Copy code
+ng generate component components/payment
+Add Stripe to the Component:
+
+In payment.component.ts:
+typescript
+Copy code
+import { Component, OnInit } from '@angular/core';
+import { loadStripe } from '@stripe/stripe-js';
+import { HttpClient } from '@angular/common/http';
+
+@Component({
+  selector: 'app-payment',
+  templateUrl: './payment.component.html',
+  styleUrls: ['./payment.component.css']
+})
+export class PaymentComponent implements OnInit {
+  stripePromise = loadStripe('your-publishable-key'); // Replace with your Stripe Publishable Key
+
+  constructor(private http: HttpClient) {}
+
+  async checkout() {
+    const stripe = await this.stripePromise;
+
+    this.http.post('/api/payments/create-checkout-session', {
+      items: [
+        { name: 'Product 1', quantity: 1, price: 2000 }, // Example item
+      ]
+    }).subscribe((session: any) => {
+      stripe?.redirectToCheckout({ sessionId: session.sessionId });
+    });
+  }
+}
+Add the Payment Button:
+
+In payment.component.html:
+html
+Copy code
+<button (click)="checkout()">Pay with Stripe</button>
+Set Up Proxy Configuration (optional for development): If your backend runs on a different port (e.g., 5000), configure a proxy in proxy.conf.json:
+
+json
+Copy code
+{
+  "/api": {
+    "target": "http://localhost:5000",
+    "secure": false
+  }
+}
+Update angular.json to use the proxy:
+
+json
+Copy code
+"serve": {
+  "options": {
+    "proxyConfig": "proxy.conf.json"
+  }
+}
+Run the Frontend: Start your Angular application:
+
+bash
+Copy code
+ng serve
